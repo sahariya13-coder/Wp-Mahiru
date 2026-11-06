@@ -36,6 +36,7 @@ const axios = require('axios');
 const ffmpeg = require('fluent-ffmpeg');
 const { isSudo } = require('./lib/index');
 const isOwnerOrSudo = require('./lib/isOwner');
+const groupAccess = require('./lib/groupAccess');
 const { autotypingCommand, isAutotypingEnabled, handleAutotypingForMessage, handleAutotypingForCommand, showTypingAfterCommand } = require('./commands/autotyping');
 const { autoreadCommand, isAutoreadEnabled, handleAutoread } = require('./commands/autoread');
 
@@ -218,6 +219,17 @@ async function handleMessages(sock, messageUpdate, printLog) {
 
         const isOwnerOrSudoCheck = message.key.fromMe || senderIsOwnerOrSudo;
 
+        // Unactivated groups can only inspect their ID and request activation.
+        if (isGroup && !groupAccess.isActive(chatId) &&
+            !/^\.(gid|gact|gdeact)(?:\s|$)/i.test(rawText || '')) {
+            await sock.sendMessage(chatId, {
+                text: `এই গ্রুপে Mahiru এখনো Active করা হয়নি।\nBot Owner-এর কাছে Group ID পাঠিয়ে Active করিয়ে নিন।\n\nOwner: ${settings.ownerUsername ? 'https://wa.me//' + settings.ownerUsername.replace(/^@/, '') : (settings.botOwner || 'Bot Owner')}\nGroup ID: ${chatId}`,
+                linkPreview: null
+            }, { quoted: message });
+            return;
+        }
+
+
         if (isBanned(senderId) && !userMessage.startsWith('.unban')) {
             if (Math.random() < 0.1) {
                 await sock.sendMessage(chatId, {
@@ -294,7 +306,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
         const adminCommands = ['.mute', '.unmute', '.ban', '.unban', '.promote', '.demote', '.kick', '.tagall', '.tagnotadmin', '.hidetag', '.antilink', '.antitag', '.setgdesc', '.setgname', '.setgpp'];
         const isAdminCommand = adminCommands.some(cmd => userMessage.startsWith(cmd));
 
-        const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.cleartmp', '.setpp', '.clearsession', '.areact', '.autoreact', '.autotyping', '.autoread', '.pmblocker'];
+        const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.cleartmp', '.setpp', '.clearsession', '.areact', '.autoreact', '.autotyping', '.autoread', '.pmblocker', '.gact', '.gdeact'];
         const isOwnerCommand = ownerCommands.some(cmd => userMessage.startsWith(cmd));
 
         let isSenderAdmin = false;
@@ -343,6 +355,33 @@ async function handleMessages(sock, messageUpdate, printLog) {
         let commandExecuted = false;
 
         switch (true) {
+            case userMessage === '.gid': {
+                if (!isGroup) {
+                    await sock.sendMessage(chatId, { text: 'এই কমান্ডটি গ্রুপে ব্যবহার করুন।' }, { quoted: message });
+                } else {
+                    await sock.sendMessage(chatId, { text: `Group ID: ${chatId}\nStatus: ${groupAccess.isActive(chatId) ? 'Active' : 'Not Active'}\nOwner: ${settings.ownerUsername ? 'https://wa.me//' + settings.ownerUsername.replace(/^@/, '') : (settings.botOwner || 'Bot Owner')}` }, { quoted: message });
+                }
+                commandExecuted = true;
+                break;
+            }
+
+            case userMessage.startsWith('.gact') || userMessage.startsWith('.gdeact'): {
+                if (!message.key.fromMe && !senderIsOwnerOrSudo) {
+                    await sock.sendMessage(chatId, { text: 'শুধু Bot Owner এই কমান্ড ব্যবহার করতে পারবেন।' }, { quoted: message });
+                    break;
+                }
+                const parts = rawText.trim().split(/\s+/);
+                const targetId = parts[1] || (isGroup ? chatId : '');
+                if (!targetId || !targetId.endsWith('@g.us')) {
+                    await sock.sendMessage(chatId, { text: 'ব্যবহার: .gact <Group ID> অথবা .gdeact <Group ID>' }, { quoted: message });
+                    break;
+                }
+                const activate = userMessage.startsWith('.gact');
+                groupAccess.setActive(targetId, activate);
+                await sock.sendMessage(chatId, { text: activate ? `✅ Group Active করা হয়েছে।\n${targetId}` : `❌ Group Deactivate করা হয়েছে।\n${targetId}` }, { quoted: message });
+                break;
+            }
+
             case userMessage === '.simage': {
                 const quotedMessage = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
                 if (quotedMessage?.stickerMessage) {
@@ -839,7 +878,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 break;
             }
 
-            case userMessage.startsWith('.chatbot'): {
+            case userMessage.startsWith('.chatbot') || userMessage.startsWith('.gai') || userMessage.startsWith('.iai'): {
                 if (isGroup) {
                     const chatbotAdminStatus = await isAdmin(sock, chatId, senderId);
                     if (!chatbotAdminStatus.isSenderAdmin && !message.key.fromMe) {
@@ -857,8 +896,13 @@ async function handleMessages(sock, messageUpdate, printLog) {
                     return;
                 }
 
-                const match = rawText.slice(8).trim();
-                await handleChatbotCommand(sock, chatId, message, match);
+                const prefix = userMessage.startsWith('.gai') ? '.gai' : (userMessage.startsWith('.iai') ? '.iai' : '.chatbot');
+                const match = rawText.slice(prefix.length).trim();
+                if ((prefix === '.gai' && !isGroup) || (prefix === '.iai' && isGroup)) {
+                    await sock.sendMessage(chatId, { text: prefix === '.gai' ? 'এই কমান্ডটি শুধু Group-এ ব্যবহার করুন।' : 'এই কমান্ডটি শুধু Inbox-এ ব্যবহার করুন।' }, { quoted: message });
+                } else {
+                    await handleChatbotCommand(sock, chatId, message, match);
+                }
                 break;
             }
 
