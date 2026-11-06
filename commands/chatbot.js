@@ -9,7 +9,7 @@ const execFileAsync = promisify(execFile);
 const USER_GROUP_DATA = path.join(__dirname, '../data/userGroupData.json');
 
 // Set GEMINI_API_KEY in the hosting panel. Never hard-code API keys in source code.
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AQ.Ab8RN6KP0aC8TX8sLgk1PXsHqzTwt1puqjRudog1upqh4SNQ-Q';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AQ.Ab8RN6KgVDLDeg23sn3gVmLNKZXe9JTuMCkOSvUZkFc-gKS9Qw';
 const GEMINI_API_URL =
     'https://generativelanguage.googleapis.com/v1beta/interactions';
 
@@ -83,7 +83,7 @@ function normalizeJid(jid) {
 }
 
 function getRandomDelay() {
-    return Math.floor(Math.random() * 1200) + 800;
+    return 0; // No artificial delay; reply as soon as the AI response is ready.
 }
 
 async function showTyping(sock, chatId) {
