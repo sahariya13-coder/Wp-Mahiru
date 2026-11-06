@@ -4,7 +4,8 @@ const settings = {
   packname: 'Mahiru',
   author: '‎',
   botName: "Mahiru Shiina",
-  botOwner: 'MSK', // Your name
+  botOwner: 'MSK', // Your display name
+  ownerUsername: 'MSKBro0', // WhatsApp username without @
   ownerNumber: '8801624235915', //Set your number here without + symbol, just add country code & number without any space
   giphyApiKey: 'qnl7ssQChTdPjsKta2Ax2LMaGXz303tq',
   commandMode: "public",
