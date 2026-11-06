@@ -55,7 +55,7 @@ async function helpCommand(sock, chatId, message) {
 ║ ➤ .tagall
 ║ ➤ .tagnotadmin
 ║ ➤ .hidetag <message>
-║ ➤ .chatbot on/off (Group AI: mention/reply to Mahiru)
+║ ➤ .gai on/off (Group AI: mention/reply to Mahiru)
 ║ ➤ .resetlink
 ║ ➤ .antitag <on/off>
 ║ ➤ .welcome <on/off>
@@ -67,7 +67,7 @@ async function helpCommand(sock, chatId, message) {
 
 ╔═══════════════════╗
 🔒 *Owner Commands*:
-║ ➤ .mode <public/private>
+║ ➤ .gid (show Group ID; works before activation)\n║ ➤ .gact <Group ID> (activate group)\n║ ➤ .gdeact <Group ID> (deactivate group)\n║ ➤ .iai on/off (Inbox AI)\n║ ➤ .mode <public/private>
 ║ ➤ .clearsession
 ║ ➤ .antidelete
 ║ ➤ .cleartmp
@@ -83,7 +83,7 @@ async function helpCommand(sock, chatId, message) {
 ║ ➤ .pmblocker <on/off/status>
 ║ ➤ .pmblocker setmsg <text>
 ║ ➤ .setmention <reply to msg>
-║ ➤ .mention <on/off>
+║ ➤ .mention <on/off>\n║ ➤ Owner: https://wa.me//${(settings.ownerUsername || settings.botOwner || 'Not set').replace(/^@/, '')}
 ╚═══════════════════╝
 
 ╔═══════════════════╗
