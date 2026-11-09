@@ -178,7 +178,7 @@ async function helpCommand(sock, chatId, message) {
 ║ ➤ .instagram <link>
 ║ ➤ .facebook <link>
 ║ ➤ .tiktok <link>
-║ ➤ .gan <song name or YouTube link>\n║ ➤ .video <song name>
+║ ➤ .video <song name>
 ║ ➤ .ytmp4 <Link>
 ╚═══════════════════╝
 
