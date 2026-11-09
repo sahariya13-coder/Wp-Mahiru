@@ -9,7 +9,7 @@ const execFileAsync = promisify(execFile);
 const USER_GROUP_DATA = path.join(__dirname, '../data/userGroupData.json');
 
 // Set GEMINI_API_KEY in the hosting panel. Never hard-code API keys in source code.
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AQ.Ab8RN6KgVDLDeg23sn3gVmLNKZXe9JTuMCkOSvUZkFc-gKS9Qw';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AQ.Ab8RN6JpTXBfCZKz6DuGv9S5EjnOLOpTKBsQlvgQnjGF7R8wgw';
 const GEMINI_API_URL =
     'https://generativelanguage.googleapis.com/v1beta/interactions';
 
