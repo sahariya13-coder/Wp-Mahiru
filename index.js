@@ -51,7 +51,29 @@ const store = require('./lib/lightweight_store')
 // Initialize store
 store.readFromFile()
 const settings = require('./settings')
-setInterval(() => store.writeToFile(), settings.storeWriteInterval || 10000)
+const storeSaveTimer = setInterval(() => store.writeToFile(), settings.storeWriteInterval || 10000)
+
+// Flush the latest message/contact/chat store before the process stops.
+let isShuttingDown = false
+function saveStoreBeforeShutdown(signal) {
+    if (isShuttingDown) return
+    isShuttingDown = true
+    console.log(chalk.yellow(`Saving bot data before ${signal || 'shutdown'}...`))
+    try {
+        clearInterval(storeSaveTimer)
+        store.writeToFile()
+    } catch (error) {
+        console.error('Failed to save bot store during shutdown:', error)
+    }
+    if (signal) process.exit(0)
+}
+
+process.once('SIGINT', () => saveStoreBeforeShutdown('SIGINT'))
+process.once('SIGTERM', () => saveStoreBeforeShutdown('SIGTERM'))
+process.once('beforeExit', () => saveStoreBeforeShutdown())
+process.once('exit', () => {
+    try { store.writeToFile() } catch (error) {}
+})
 
 // Memory optimization - Force garbage collection if available
 setInterval(() => {
