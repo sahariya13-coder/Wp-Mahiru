@@ -130,7 +130,6 @@ const { shayariCommand } = require('./commands/shayari');
 const { rosedayCommand } = require('./commands/roseday');
 const imagineCommand = require('./commands/imagine');
 const videoCommand = require('./commands/video');
-const ganCommand = require('./commands/gan');
 const sudoCommand = require('./commands/sudo');
 const { miscCommand, handleHeart } = require('./commands/misc');
 const { animeCommand } = require('./commands/anime');
@@ -1125,11 +1124,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
 
             case userMessage.startsWith('.spotify'):
                 await spotifyCommand(sock, chatId, message);
-                break;
-
-            case userMessage === '.gan' || userMessage.startsWith('.gan '):
-                await ganCommand(sock, chatId, message);
-                commandExecuted = true;
                 break;
 
             case userMessage.startsWith('.play') || userMessage.startsWith('.mp3') || userMessage.startsWith('.ytmp3') || userMessage.startsWith('.song'):
