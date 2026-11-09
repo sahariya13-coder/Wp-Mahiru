@@ -24,6 +24,8 @@ function detectAudioFormat(buffer) {
 }
 
 async function ganCommand(sock, chatId, message) {
+  let requestStage = 'Worker formats API';
+  let requestUrl = '';
   try {
     const raw = message.message?.conversation ||
       message.message?.extendedTextMessage?.text ||
@@ -65,6 +67,7 @@ async function ganCommand(sock, chatId, message) {
     }, { quoted: message });
 
     const apiUrl = `${WORKER_URL}/api/formats?url=${encodeURIComponent(video.url)}`;
+    requestUrl = apiUrl;
     const apiResponse = await axios.get(apiUrl, {
       timeout: 90000,
       headers: { Accept: 'application/json' }
@@ -91,6 +94,8 @@ async function ganCommand(sock, chatId, message) {
       audioFormats.find((format) => /m4a|mp4/i.test(String(format.label || ''))) ||
       audioFormats[0];
 
+    requestStage = 'Audio file download';
+    requestUrl = selected.download;
     const downloadResponse = await axios.get(selected.download, {
       responseType: 'arraybuffer',
       timeout: 120000,
@@ -127,10 +132,16 @@ async function ganCommand(sock, chatId, message) {
     }, { quoted: message });
 
   } catch (error) {
-    console.error('[gan] Download error:', error?.response?.status || error?.message || error);
+    console.error('[gan] Download error:', {
+      stage: requestStage,
+      status: error?.response?.status || null,
+      url: requestUrl,
+      message: error?.response?.data?.error || error?.message || 'Unknown error'
+    });
+    const status = error?.response?.status ? `HTTP ${error.response.status}` : '';
     const detail = error?.response?.data?.error || error?.message || 'Unknown error';
     await sock.sendMessage(chatId, {
-      text: `❌ গান Download করা যায়নি।\nকারণ: ${String(detail).slice(0, 250)}`
+      text: `❌ গান Download করা যায়নি।\nধাপ: ${requestStage}\n${status}\nকারণ: ${String(detail).slice(0, 250)}`
     }, { quoted: message });
   }
 }
