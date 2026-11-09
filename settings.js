@@ -19,6 +19,7 @@ const settings = {
   knightApiKey: process.env.KNIGHT_API_KEY || 'knight',
   mediaApiUrl: process.env.MEDIA_API_URL || 'https://knightbotapi.stream',
   mediaApiKey: process.env.MEDIA_API_KEY || 'knight',
+  youtubeWorkerUrl: process.env.YOUTUBE_WORKER_URL || 'https://youtube.msk162423.workers.dev',
   princeApiUrl: process.env.PRINCE_API_URL || 'https://api.princetechn.com',
   princeApiKey: process.env.PRINCE_API_KEY || 'prince',
 };
