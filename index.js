@@ -17,6 +17,7 @@ const FileType = require('file-type')
 const path = require('path')
 const axios = require('axios')
 const { handleMessages, handleGroupParticipantUpdate, handleStatus } = require('./main');
+const { storeMessage: storeAntideleteMessage, handleMessageRevocation } = require('./commands/antidelete');
 const PhoneNumber = require('awesome-phonenumber')
 const { imageToWebp, videoToWebp, writeExifImg, writeExifVid } = require('./lib/exif')
 const { smsg, isUrl, generateMessageTag, getBuffer, getSizeMedia, fetch, await, sleep, reSize } = require('./lib/myfunc')
@@ -151,6 +152,23 @@ async function startXeonBotInc() {
     XeonBotInc.ev.on('messages.upsert', async chatUpdate => {
         try {
             const mek = chatUpdate.messages[0]
+            if (!mek) return
+
+            // Capture every incoming message before normal command handling.
+            // Anti-delete needs the original message ID and payload before WhatsApp revokes it.
+            for (const incoming of (chatUpdate.messages || [])) {
+                if (!incoming?.message || !incoming?.key?.id) continue;
+                try {
+                    const savedMessage = { ...incoming, message: { ...incoming.message } };
+                    if (Object.keys(savedMessage.message)[0] === 'ephemeralMessage') {
+                        savedMessage.message = savedMessage.message.ephemeralMessage.message || savedMessage.message;
+                    }
+                    await storeAntideleteMessage(XeonBotInc, savedMessage);
+                } catch (antiDeleteStoreError) {
+                    console.error('Anti-delete message capture error:', antiDeleteStoreError);
+                }
+            }
+
             if (!mek.message) return
             mek.message = (Object.keys(mek.message)[0] === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message
             if (mek.key && mek.key.remoteJid === 'status@broadcast') {
@@ -189,6 +207,41 @@ async function startXeonBotInc() {
             console.error("Error in messages.upsert:", err)
         }
     })
+
+    // Baileys emits revocations through messages.update. Handle both array and single updates.
+    XeonBotInc.ev.on('messages.update', async (updates) => {
+        try {
+            for (const item of (Array.isArray(updates) ? updates : [updates])) {
+                const protocol = item?.update?.message?.protocolMessage || item?.message?.protocolMessage;
+                if (!protocol || protocol.type !== 0 || !protocol.key?.id) continue;
+
+                await handleMessageRevocation(XeonBotInc, {
+                    key: item.key || protocol.key,
+                    participant: item.key?.participant || item.participant,
+                    message: { protocolMessage: protocol }
+                });
+            }
+        } catch (error) {
+            console.error('Anti-delete messages.update error:', error);
+        }
+    });
+
+    // Some Baileys versions deliver revoke protocol messages as messages.upsert.
+    XeonBotInc.ev.on('messages.upsert', async ({ messages = [] }) => {
+        try {
+            for (const item of messages) {
+                const protocol = item?.message?.protocolMessage;
+                if (!protocol || protocol.type !== 0 || !protocol.key?.id) continue;
+                await handleMessageRevocation(XeonBotInc, {
+                    key: item.key || protocol.key,
+                    participant: item.key?.participant,
+                    message: { protocolMessage: protocol }
+                });
+            }
+        } catch (error) {
+            console.error('Anti-delete revoke upsert error:', error);
+        }
+    });
 
     // Add these event handlers for better functionality
     XeonBotInc.decodeJid = (jid) => {
