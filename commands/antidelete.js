@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const { tmpdir } = require('os');
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const { writeFile } = require('fs/promises');
 
@@ -12,53 +11,45 @@ async function downloadMessageBuffer(mediaMessage, mediaType) {
 }
 
 const messageStore = new Map();
-const CONFIG_PATH = path.join(__dirname, '../data/antidelete.json');
-const TEMP_MEDIA_DIR = path.join(__dirname, '../tmp');
+const DATA_DIR = path.join(__dirname, '../data');
+const CONFIG_PATH = path.join(DATA_DIR, 'antidelete.json');
+const STORE_PATH = path.join(DATA_DIR, 'antidelete_messages.json');
+const TEMP_MEDIA_DIR = path.join(DATA_DIR, 'antidelete_media');
+
+// Keep captured messages across bot restarts. Media is stored separately from
+// the general tmp folder so unrelated temp cleanup cannot remove antidelete files.
+function loadMessageStore() {
+    try {
+        fs.mkdirSync(TEMP_MEDIA_DIR, { recursive: true });
+        if (!fs.existsSync(STORE_PATH)) return;
+        const saved = JSON.parse(fs.readFileSync(STORE_PATH, 'utf8'));
+        for (const [id, item] of Object.entries(saved)) {
+            if (!item || !item.timestamp) continue;
+            if (item.mediaPath && !fs.existsSync(item.mediaPath)) item.mediaPath = '';
+            messageStore.set(id, item);
+        }
+    } catch (error) {
+        console.error('Antidelete store load error:', error);
+    }
+}
+
+function saveMessageStore() {
+    try {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+        const tempPath = STORE_PATH + '.tmp';
+        fs.writeFileSync(tempPath, JSON.stringify(Object.fromEntries(messageStore), null, 2));
+        fs.renameSync(tempPath, STORE_PATH);
+    } catch (error) {
+        console.error('Antidelete store save error:', error);
+    }
+}
+
+loadMessageStore();
 
 // Ensure tmp dir exists
 if (!fs.existsSync(TEMP_MEDIA_DIR)) {
     fs.mkdirSync(TEMP_MEDIA_DIR, { recursive: true });
 }
-
-// Function to get folder size in MB
-const getFolderSizeInMB = (folderPath) => {
-    try {
-        const files = fs.readdirSync(folderPath);
-        let totalSize = 0;
-
-        for (const file of files) {
-            const filePath = path.join(folderPath, file);
-            if (fs.statSync(filePath).isFile()) {
-                totalSize += fs.statSync(filePath).size;
-            }
-        }
-
-        return totalSize / (1024 * 1024); // Convert bytes to MB
-    } catch (err) {
-        console.error('Error getting folder size:', err);
-        return 0;
-    }
-};
-
-// Function to clean temp folder if size exceeds 10MB
-const cleanTempFolderIfLarge = () => {
-    try {
-        const sizeMB = getFolderSizeInMB(TEMP_MEDIA_DIR);
-        
-        if (sizeMB > 200) {
-            const files = fs.readdirSync(TEMP_MEDIA_DIR);
-            for (const file of files) {
-                const filePath = path.join(TEMP_MEDIA_DIR, file);
-                fs.unlinkSync(filePath);
-            }
-        }
-    } catch (err) {
-        console.error('Temp cleanup error:', err);
-    }
-};
-
-// Start periodic cleanup check every 1 minute
-setInterval(cleanTempFolderIfLarge, 60 * 1000);
 
 // Load config
 function loadAntideleteConfig() {
@@ -184,6 +175,16 @@ async function storeMessage(sock, message) {
             group: message.key.remoteJid.endsWith('@g.us') ? message.key.remoteJid : null,
             timestamp: new Date().toISOString()
         });
+        // Bound disk usage: retain the newest 1000 messages.
+        while (messageStore.size > 1000) {
+            const oldestId = messageStore.keys().next().value;
+            const oldest = messageStore.get(oldestId);
+            if (oldest?.mediaPath && fs.existsSync(oldest.mediaPath)) {
+                try { fs.unlinkSync(oldest.mediaPath); } catch {}
+            }
+            messageStore.delete(oldestId);
+        }
+        saveMessageStore();
 
         // Anti-ViewOnce: forward immediately to owner if captured
         if (isViewOnce && mediaType && fs.existsSync(mediaPath)) {
@@ -218,7 +219,9 @@ async function handleMessageRevocation(sock, revocationMessage) {
         const config = loadAntideleteConfig();
         if (!config.enabled) return;
 
-        const messageId = revocationMessage.message.protocolMessage.key.id;
+        const originalKey = revocationMessage?.message?.protocolMessage?.key || revocationMessage?.update?.message?.protocolMessage?.key;
+        const messageId = originalKey?.id;
+        if (!messageId) return;
         const deletedBy = revocationMessage.participant || revocationMessage.key.participant || revocationMessage.key.remoteJid;
         const ownerNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
 
@@ -305,6 +308,7 @@ async function handleMessageRevocation(sock, revocationMessage) {
         }
 
         messageStore.delete(messageId);
+        saveMessageStore();
 
     } catch (err) {
         console.error('handleMessageRevocation error:', err);
