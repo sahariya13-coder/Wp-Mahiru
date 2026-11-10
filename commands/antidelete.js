@@ -11,6 +11,8 @@ async function downloadMessageBuffer(mediaMessage, mediaType) {
 }
 
 const messageStore = new Map();
+// Prevent simultaneous duplicate revoke events for the same message.
+const processingRevocations = new Set();
 const DATA_DIR = path.join(__dirname, '../data');
 const CONFIG_PATH = path.join(DATA_DIR, 'antidelete.json');
 const STORE_PATH = path.join(DATA_DIR, 'antidelete_messages.json');
@@ -228,14 +230,16 @@ async function handleMessageRevocation(sock, revocationMessage) {
         if (deletedBy.includes(sock.user.id) || deletedBy === ownerNumber) return;
 
         const original = messageStore.get(messageId);
-        if (!original) return;
+        if (!original || processingRevocations.has(messageId)) return;
+        // Lock before the first await because duplicate revoke events can arrive together.
+        processingRevocations.add(messageId);
 
         const sender = original.sender;
         const senderName = sender.split('@')[0];
         const groupName = original.group ? (await sock.groupMetadata(original.group)).subject : '';
 
         const time = new Date().toLocaleString('en-US', {
-            timeZone: 'Asia/Kolkata',
+            timeZone: 'Asia/Dhaka',
             hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit',
             day: '2-digit', month: '2-digit', year: 'numeric'
         });
@@ -312,6 +316,9 @@ async function handleMessageRevocation(sock, revocationMessage) {
 
     } catch (err) {
         console.error('handleMessageRevocation error:', err);
+    } finally {
+        const key = revocationMessage?.message?.protocolMessage?.key || revocationMessage?.update?.message?.protocolMessage?.key;
+        if (key?.id) processingRevocations.delete(key.id);
     }
 }
 
