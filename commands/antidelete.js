@@ -4,6 +4,13 @@ const { tmpdir } = require('os');
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const { writeFile } = require('fs/promises');
 
+async function downloadMessageBuffer(mediaMessage, mediaType) {
+    const stream = await downloadContentFromMessage(mediaMessage, mediaType);
+    const chunks = [];
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+    return Buffer.concat(chunks);
+}
+
 const messageStore = new Map();
 const CONFIG_PATH = path.join(__dirname, '../data/antidelete.json');
 const TEMP_MEDIA_DIR = path.join(__dirname, '../tmp');
@@ -66,6 +73,7 @@ function loadAntideleteConfig() {
 // Save config
 function saveAntideleteConfig(config) {
     try {
+        fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
     } catch (err) {
         console.error('Config save error:', err);
@@ -126,14 +134,14 @@ async function storeMessage(sock, message) {
             if (viewOnceContainer.imageMessage) {
                 mediaType = 'image';
                 content = viewOnceContainer.imageMessage.caption || '';
-                const buffer = await downloadContentFromMessage(viewOnceContainer.imageMessage, 'image');
+                const buffer = await downloadMessageBuffer(viewOnceContainer.imageMessage, 'image');
                 mediaPath = path.join(TEMP_MEDIA_DIR, `${messageId}.jpg`);
                 await writeFile(mediaPath, buffer);
                 isViewOnce = true;
             } else if (viewOnceContainer.videoMessage) {
                 mediaType = 'video';
                 content = viewOnceContainer.videoMessage.caption || '';
-                const buffer = await downloadContentFromMessage(viewOnceContainer.videoMessage, 'video');
+                const buffer = await downloadMessageBuffer(viewOnceContainer.videoMessage, 'video');
                 mediaPath = path.join(TEMP_MEDIA_DIR, `${messageId}.mp4`);
                 await writeFile(mediaPath, buffer);
                 isViewOnce = true;
@@ -145,25 +153,25 @@ async function storeMessage(sock, message) {
         } else if (message.message?.imageMessage) {
             mediaType = 'image';
             content = message.message.imageMessage.caption || '';
-            const buffer = await downloadContentFromMessage(message.message.imageMessage, 'image');
+            const buffer = await downloadMessageBuffer(message.message.imageMessage, 'image');
             mediaPath = path.join(TEMP_MEDIA_DIR, `${messageId}.jpg`);
             await writeFile(mediaPath, buffer);
         } else if (message.message?.stickerMessage) {
             mediaType = 'sticker';
-            const buffer = await downloadContentFromMessage(message.message.stickerMessage, 'sticker');
+            const buffer = await downloadMessageBuffer(message.message.stickerMessage, 'sticker');
             mediaPath = path.join(TEMP_MEDIA_DIR, `${messageId}.webp`);
             await writeFile(mediaPath, buffer);
         } else if (message.message?.videoMessage) {
             mediaType = 'video';
             content = message.message.videoMessage.caption || '';
-            const buffer = await downloadContentFromMessage(message.message.videoMessage, 'video');
+            const buffer = await downloadMessageBuffer(message.message.videoMessage, 'video');
             mediaPath = path.join(TEMP_MEDIA_DIR, `${messageId}.mp4`);
             await writeFile(mediaPath, buffer);
         } else if (message.message?.audioMessage) {
             mediaType = 'audio';
             const mime = message.message.audioMessage.mimetype || '';
             const ext = mime.includes('mpeg') ? 'mp3' : (mime.includes('ogg') ? 'ogg' : 'mp3');
-            const buffer = await downloadContentFromMessage(message.message.audioMessage, 'audio');
+            const buffer = await downloadMessageBuffer(message.message.audioMessage, 'audio');
             mediaPath = path.join(TEMP_MEDIA_DIR, `${messageId}.${ext}`);
             await writeFile(mediaPath, buffer);
         }
