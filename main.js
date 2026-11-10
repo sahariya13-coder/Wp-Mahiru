@@ -166,7 +166,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
         await handleAutoread(sock, message);
 
         if (message.message) {
-            storeMessage(sock, message);
+            await storeMessage(sock, message);
         }
 
         if (message.message?.protocolMessage?.type === 0) {
